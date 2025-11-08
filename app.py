@@ -1,6 +1,7 @@
 import streamlit as st
 import PyPDF2
-import os
+import requests
+import json
 
 # Configurar página
 st.set_page_config(
@@ -9,12 +10,10 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS bonito
+# CSS
 st.markdown("""
 <style>
-    .main {
-        background-color: #f5f7fa;
-    }
+    .main { background-color: #f5f7fa; }
     .stButton>button {
         background-color: #0066cc;
         color: white;
@@ -36,45 +35,37 @@ col1, col2 = st.columns([2, 1])
 with col1:
     st.markdown("### 📤 Upload da Autuação")
     
-    # Upload do PDF
     arquivo = st.file_uploader(
         "Arraste ou clique para enviar o PDF da multa",
-        type=['pdf'],
-        help="Envie o PDF da notificação de autuação"
+        type=['pdf']
     )
     
     if arquivo:
         st.success(f"✅ Arquivo recebido: **{arquivo.name}**")
         
-        # Ler PDF
         try:
             pdf = PyPDF2.PdfReader(arquivo)
             texto = ""
             
-            # Extrair texto de todas as páginas
             for pagina in pdf.pages:
                 texto += pagina.extract_text()
             
-            # Mostrar preview
             with st.expander("👁️ Visualizar texto extraído"):
                 st.text(texto[:500] + "...")
             
-            # Botão de análise
             if st.button("🔍 Analisar com IA", type="primary"):
                 
-                # Barra de progresso
                 with st.spinner("🤖 Analisando autuação..."):
                     
                     try:
-                        # Configurar API key
-                        os.environ['GROQ_API_KEY'] = st.secrets["GROQ_API_KEY"]
+                        # Chamar Groq via API HTTP direta
+                        url = "https://api.groq.com/openai/v1/chat/completions"
                         
-                        from groq import Groq
+                        headers = {
+                            "Authorization": f"Bearer {st.secrets['GROQ_API_KEY']}",
+                            "Content-Type": "application/json"
+                        }
                         
-                        # Conectar com Groq
-                        client = Groq()
-                        
-                        # Criar prompt para IA
                         prompt = f"""Você é um advogado especialista em direito de trânsito brasileiro.
 
 AUTUAÇÃO RECEBIDA:
@@ -84,103 +75,81 @@ Por favor, faça:
 
 1. **RESUMO DA AUTUAÇÃO:**
    - Código da infração
-   - Descrição da infração
-   - Valor da multa (se mencionado)
-   - Pontos na CNH
+   - Descrição
+   - Valor e pontos
 
 2. **ANÁLISE JURÍDICA:**
    - Base legal (CTB/MBFT)
-   - Possíveis vícios ou irregularidades
+   - Possíveis vícios
    - Chances de defesa
 
-3. **RECURSO DE DEFESA (modelo):**
-   - Qualificação do autuado
+3. **RECURSO DE DEFESA:**
+   - Qualificação
    - Dos fatos
    - Do direito
    - Dos pedidos
 
-Seja técnico, profissional e didático."""
+Seja técnico e profissional."""
 
-                        # Chamar IA
-                        resposta = client.chat.completions.create(
-                            model="llama3-70b-8192",
-                            messages=[{
-                                "role": "user",
-                                "content": prompt
-                            }],
-                            temperature=0.3,
-                            max_tokens=2000
-                        )
+                        data = {
+                            "model": "llama3-70b-8192",
+                            "messages": [{"role": "user", "content": prompt}],
+                            "temperature": 0.3,
+                            "max_tokens": 2000
+                        }
                         
-                        resultado = resposta.choices[0].message.content
+                        response = requests.post(url, headers=headers, json=data)
                         
-                    except Exception as api_error:
-                        st.error(f"❌ Erro na API: {str(api_error)}")
-                        st.info("💡 Verifique se a chave GROQ_API_KEY está correta.")
+                        if response.status_code == 200:
+                            resultado = response.json()['choices'][0]['message']['content']
+                        else:
+                            st.error(f"❌ Erro API: {response.status_code}")
+                            st.code(response.text)
+                            resultado = None
+                            
+                    except Exception as e:
+                        st.error(f"❌ Erro: {str(e)}")
                         resultado = None
                 
-                # Mostrar resultado
                 if resultado:
                     st.success("✅ Análise concluída!")
                     
-                    # Tabs organizadas
-                    tab1, tab2, tab3 = st.tabs(["📊 Análise Completa", "📝 Recurso", "💾 Download"])
+                    tab1, tab2, tab3 = st.tabs(["📊 Análise", "📝 Recurso", "💾 Download"])
                     
                     with tab1:
                         st.markdown("### 📊 Análise da IA")
                         st.markdown(resultado)
                     
                     with tab2:
-                        st.markdown("### 📝 Texto do Recurso")
-                        st.text_area(
-                            "Copie o recurso abaixo:",
-                            resultado,
-                            height=400
-                        )
+                        st.text_area("Recurso:", resultado, height=400)
                     
                     with tab3:
-                        st.markdown("### 💾 Download")
                         st.download_button(
-                            "📥 Baixar Análise (TXT)",
+                            "📥 Baixar",
                             data=resultado,
-                            file_name=f"analise_{arquivo.name}.txt",
-                            mime="text/plain"
+                            file_name=f"analise_{arquivo.name}.txt"
                         )
-                        st.info("💡 Cole este texto no Word e salve como PDF")
         
         except Exception as e:
-            st.error(f"❌ Erro ao processar PDF: {str(e)}")
-            st.info("💡 Tente outro arquivo PDF ou verifique se não está protegido.")
+            st.error(f"❌ Erro: {str(e)}")
 
 with col2:
     st.markdown("### 📚 Como Funciona")
-    
     st.info("""
     **1. Upload** 📤  
-    Envie o PDF da autuação
-    
     **2. Extração** 📄  
-    Sistema lê o texto do PDF
-    
     **3. Análise** 🔍  
-    IA especializada analisa
-    
     **4. Recurso** 📝  
-    Gera defesa personalizada
-    
-    **5. Download** 💾  
-    Baixe e use!
+    **5. Download** 💾
     """)
     
-    st.success("✅ **100% GRÁTIS**")
-    st.info("⚡ IA super rápida (Groq)")
-    st.warning("⚖️ Sempre revise com advogado")
+    st.success("✅ 100% GRÁTIS")
+    st.info("⚡ IA Groq")
+    st.warning("⚖️ Revise com advogado")
 
-# Footer
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #666;'>
     <p><b>Babix AI</b> © 2025 | MG Multas</p>
-    <p>Powered by Groq (llama3-70b) | 100% Gratuito</p>
 </div>
 """, unsafe_allow_html=True)
