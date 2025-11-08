@@ -1,6 +1,6 @@
 import streamlit as st
 import PyPDF2
-from groq import Groq
+from groq import Client as GroqClient
 
 # Configurar página
 st.set_page_config(
@@ -66,7 +66,7 @@ with col1:
                 with st.spinner("🤖 Analisando autuação..."):
                     
                     # Conectar com Groq (IA gratuita)
-                    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+                    client = GroqClient(api_key=st.secrets["GROQ_API_KEY"])
                     
                     # Criar prompt para IA
                     prompt = f"""Você é um advogado especialista em direito de trânsito brasileiro.
