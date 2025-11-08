@@ -1,6 +1,6 @@
 import streamlit as st
 import PyPDF2
-from groq import Client as GroqClient
+import os
 
 # Configurar página
 st.set_page_config(
@@ -65,11 +65,17 @@ with col1:
                 # Barra de progresso
                 with st.spinner("🤖 Analisando autuação..."):
                     
-                    # Conectar com Groq (IA gratuita)
-                    client = GroqClient(api_key=st.secrets["GROQ_API_KEY"])
-                    
-                    # Criar prompt para IA
-                    prompt = f"""Você é um advogado especialista em direito de trânsito brasileiro.
+                    try:
+                        # Configurar API key
+                        os.environ['GROQ_API_KEY'] = st.secrets["GROQ_API_KEY"]
+                        
+                        from groq import Groq
+                        
+                        # Conectar com Groq
+                        client = Groq()
+                        
+                        # Criar prompt para IA
+                        prompt = f"""Você é um advogado especialista em direito de trânsito brasileiro.
 
 AUTUAÇÃO RECEBIDA:
 {texto[:3000]}
@@ -79,7 +85,7 @@ Por favor, faça:
 1. **RESUMO DA AUTUAÇÃO:**
    - Código da infração
    - Descrição da infração
-   - Valor da multa
+   - Valor da multa (se mencionado)
    - Pontos na CNH
 
 2. **ANÁLISE JURÍDICA:**
@@ -95,50 +101,56 @@ Por favor, faça:
 
 Seja técnico, profissional e didático."""
 
-                    # Chamar IA
-                    resposta = client.chat.completions.create(
-                        model="llama3-70b-8192",  # Modelo grátis e potente
-                        messages=[{
-                            "role": "user",
-                            "content": prompt
-                        }],
-                        temperature=0.3,
-                        max_tokens=2000
-                    )
-                    
-                    resultado = resposta.choices[0].message.content
+                        # Chamar IA
+                        resposta = client.chat.completions.create(
+                            model="llama3-70b-8192",
+                            messages=[{
+                                "role": "user",
+                                "content": prompt
+                            }],
+                            temperature=0.3,
+                            max_tokens=2000
+                        )
+                        
+                        resultado = resposta.choices[0].message.content
+                        
+                    except Exception as api_error:
+                        st.error(f"❌ Erro na API: {str(api_error)}")
+                        st.info("💡 Verifique se a chave GROQ_API_KEY está correta.")
+                        resultado = None
                 
                 # Mostrar resultado
-                st.success("✅ Análise concluída!")
-                
-                # Tabs organizadas
-                tab1, tab2, tab3 = st.tabs(["📊 Análise Completa", "📝 Recurso", "💾 Download"])
-                
-                with tab1:
-                    st.markdown("### 📊 Análise da IA")
-                    st.markdown(resultado)
-                
-                with tab2:
-                    st.markdown("### 📝 Texto do Recurso")
-                    st.text_area(
-                        "Copie o recurso abaixo:",
-                        resultado,
-                        height=400
-                    )
-                
-                with tab3:
-                    st.markdown("### 💾 Download")
-                    st.download_button(
-                        "📥 Baixar Análise (TXT)",
-                        data=resultado,
-                        file_name=f"analise_{arquivo.name}.txt",
-                        mime="text/plain"
-                    )
-                    st.info("💡 Cole este texto no Word e salve como PDF")
+                if resultado:
+                    st.success("✅ Análise concluída!")
+                    
+                    # Tabs organizadas
+                    tab1, tab2, tab3 = st.tabs(["📊 Análise Completa", "📝 Recurso", "💾 Download"])
+                    
+                    with tab1:
+                        st.markdown("### 📊 Análise da IA")
+                        st.markdown(resultado)
+                    
+                    with tab2:
+                        st.markdown("### 📝 Texto do Recurso")
+                        st.text_area(
+                            "Copie o recurso abaixo:",
+                            resultado,
+                            height=400
+                        )
+                    
+                    with tab3:
+                        st.markdown("### 💾 Download")
+                        st.download_button(
+                            "📥 Baixar Análise (TXT)",
+                            data=resultado,
+                            file_name=f"analise_{arquivo.name}.txt",
+                            mime="text/plain"
+                        )
+                        st.info("💡 Cole este texto no Word e salve como PDF")
         
         except Exception as e:
             st.error(f"❌ Erro ao processar PDF: {str(e)}")
-            st.info("Tente outro arquivo PDF ou verifique se não está protegido.")
+            st.info("💡 Tente outro arquivo PDF ou verifique se não está protegido.")
 
 with col2:
     st.markdown("### 📚 Como Funciona")
