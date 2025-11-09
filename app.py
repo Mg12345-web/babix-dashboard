@@ -279,4 +279,32 @@ if auto_pdf:
             st.write("(Nenhum contexto adicional)")
 
     # ===== QQROC =====
-    st.markdown("## 📊 QQROC
+    st.markdown("## 📊 QQROC – Diagnóstico Jurídico")
+    orgao = qqroc_quem(auto_txt)
+    que = qqroc_que(auto_txt, codigo)
+    reqs = qqroc_requisitos(auto_txt)
+    conseq, cor_conseq = qqroc_consequencia(status_obs, mbft_ctx.get("obrigatorio", False))
+
+    st.markdown(f"<div class='card'><b>👤 QUEM autuou:</b> {orgao}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='card'><b>💡 QUE conduta:</b> {que}</div>", unsafe_allow_html=True)
+    st.markdown("<div class='card'><b>📋 REQUISITOS formais:</b><br>" +
+                ("<br>".join([f"❌ {r}" for r in reqs]) if reqs else "✅ Todos identificados") + "</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='card'><b>⚙️ OBSERVAÇÕES (comparativo MBFT):</b> "
+                f"<span class='badge {color_obs}'>{status_obs}</span></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='card'><b>⚖️ CONSEQUÊNCIA:</b> "
+                f"<span class='badge {cor_conseq}'>{conseq}</span></div>", unsafe_allow_html=True)
+
+    # ===== DEFESA DOCX =====
+    st.markdown("### 📁 Gerar Defesa (DOCX)")
+    dados = {
+        "codigo": codigo,
+        "desc_infracao": que,
+        "orgao": orgao,
+        "obs_auto": obs_auto,
+        "status_obs": status_obs,
+        "sim": score,
+        "obrigatorio": mbft_ctx.get("obrigatorio", False)
+    }
+    if st.button("Gerar Defesa em DOCX"):
+        docx_bytes = gerar_defesa_docx(dados)
+        st.download_button("⬇️ Baixar Defesa.docx", data=docx_bytes, file_name="defesa_babix.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
